@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>SafePass - Autenticación</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-dark d-flex align-items-center justify-content-center" style="height: 100vh;">
+    <div class="card shadow-lg p-4 bg-white border-0" style="width: 100%; max-width: 400px; border-radius: 14px;">
+        <div class="text-center mb-4">
+            <h3 class="fw-bold text-dark mb-0">SafePass</h3>
+            <p class="text-muted small">Control de Accesos - Selección de Operador</p>
+        </div>
+
+        {% if error %}
+        <div class="alert alert-danger text-center small fw-bold py-2" role="alert">
+             {{ error }}
+        </div>
+        {% endif %}
+
+        <form action="/login-auth" method="POST">
+            <div class="mb-3">
+                <label class="form-label text-muted small fw-bold">Seleccione su Rol:</label>
+                <select class="form-select fw-bold" name="rol" id="select-rol" onchange="evaluarCampos()">
+                    <option value="Guest">Guest (Invitado - Sin Clave)</option>
+                    <option value="User">User (Usuario - Sin Clave)</option>
+                    <option value="Supervisor">Supervisor (Auditor - Sin Clave)</option>
+                    <option value="Admin">Admin (Administrador - Requiere Clave)</option>
+                    <option value="Superadmin">Superadmin (Control Total - Requiere Clave)</option>
+                </select>
+            </div>
+
+            <div class="mb-4 d-none" id="grupo-password">
+                <label class="form-label text-danger small fw-bold">Contraseña de Seguridad:</label>
+                <input type="password" class="form-control text-center fw-bold text-secondary" name="password" id="input-pass" placeholder="••••••••">
+            </div>
+
+            <button type="submit" class="btn btn-primary w-100 fw-bold py-2 shadow-sm">Iniciando Sesión</button>
+        </form>
+    </div>
+
+    <script>
+        function evaluarCampos() {
+            const rol = document.getElementById('select-rol').value;
+            const grupoPass = document.getElementById('grupo-password');
+            const inputPass = document.getElementById('input-pass');
+
+            if (rol === 'Superadmin' || rol === 'Admin') {
+                grupoPass.classList.remove('d-none'); // Muestra el campo
+                inputPass.required = true;
+            } else {
+                grupoPass.classList.add('d-none');    // Oculta el campo
+                inputPass.required = false;
+                inputPass.value = '';                 // Limpia el texto por seguridad
+            }
+        }
+        // Ejecutar al cargar la página por si se quedó seleccionado un rol alto
+        evaluarCampos();
+    </script>
+</body>
+</html>
