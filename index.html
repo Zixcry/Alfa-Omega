@@ -5,7 +5,7 @@
     <div class="alert alert-danger text-center fw-bold fs-5" id="alerta-texto"></div>
 </div>
 
-<div class="card shadow-sm border-0 p-3 mb-4 bg-dark text-white">
+<div class="card shadow-sm border-0 p-3 mb-4 bg-grey text-white">
         <input type="hidden" id="session-operador" value="{{ rol_inicial }}">
         <div id="cintillo-sesion" class="alert alert-info py-2 shadow-sm fw-bold mb-3 text-center small-alert" style="transition: opacity 1s ease:">
             Sesión Activa del Sistema: <span class="text-primary text-uppercase">{{ rol_inicial }}</span>
@@ -21,7 +21,7 @@
                 <h5 class="fw-bold text-secondary small text-uppercase">Ocupación del Edificio</h5>
                 <span class="fs-6 text-dark" id="txt-aforo">0 / 100 Personas</span>
                 <div class="col-md-8 col-sm-6">
-                <div class="progress" style="height: 12px;">
+                <div class="progress" style="height: 10px;">
             </div>
             <div class="progress">
                 <div id="barra-progreso" class="progress-bar progress-bar-striped progress-bar-animated bg-success" style="width: 0%">0%</div>
@@ -33,7 +33,7 @@
 <div class="row">
     <div class="col-lg-4 mb-4">
         <div class="card shadow-sm border-0 mb-4">
-            <div class="card-header bg-primary text-white fw-bold"> Terminal Lector de Cédulas</div>
+            <div class="card-header bg-primary text-white fw-bold"> Lector de Cédulas</div>
             <div class="card-body p-4">
                 <input type="text" class="form-control form-control-lg text-center fw-bold mb-3" id="input-cedula" placeholder="N° de Cédula a marcar">
                 <div class="row g-2">
@@ -53,7 +53,6 @@
                 <div class="mb-3">
                     <select class="form-select" id="reg-rol">
                         <option value="User">User (Solo registro)</option>
-                        <option value="Guest">Guest (Solo registro)</option>
                         <option value="Supervisor">Supervisor (Ver logs)</option>
                         <option value="Admin">Admin (Modificar sin borrar)</option>
                         <option value="Superadmin">Superadmin (Control Total)</option>
@@ -64,7 +63,7 @@
         </div>
 
         <div class="card shadow-sm border-0">
-            <div class="card-header bg-warning text-dark fw-bold"> Acciones de Roles (Admin / Superadmin)</div>
+            <div class="card-header bg-warning text-dark fw-bold"> Modificar Estado de Usuario </div>
             <div class="card-body p-4">
                 <div class="mb-2"><input type="text" class="form-control text-center" id="target-cedula" placeholder="Cédula del usuario a afectar"></div>
                 <div class="row g-2">
@@ -72,7 +71,7 @@
                     <div class="col-6"><button class="btn btn-outline-success w-100 fw-bold btn-sm" onclick="modificarEstado('Activo')">🔓 Activar</button></div>
                 </div>
                 <hr>
-                <button class="btn btn-danger w-100 fw-bold" onclick="eliminarFisico()"> ELIMINAR TOTAL (Superadmin)</button>
+                <button class="btn btn-danger w-100 fw-bold" onclick="eliminarFisico()"> Eliminar Usuario </button>
             </div>
         </div>
     </div>
@@ -174,7 +173,8 @@
     }
 
     function actualizarDashboard() {
-    // Captura el rol enviado desde el Login (Superadmin, Admin, etc.)
+
+            // Captura el rol enviado desde el Login (Superadmin, Admin, etc.)
 
         const rolActivo = document.getElementById('session-operador').value;
     
@@ -232,8 +232,8 @@
     setTimeout(function() {
     const cintillo = document.getElementById('cintillo-sesion');
     if (cintillo) {
-        cintillo.style.opacity = '0'; // Aplica desvanecimiento suave
-        setTimeout(() => cintillo.remove(), 1000); // Lo elimina físicamente del diseño 1 segundo después
+        cintillo.style.opacity = '0'; //     Aplica desvanecimiento suave
+        setTimeout(() => cintillo.remove(), 1000); //    Lo elimina físicamente del diseño 1 segundo después
     }
 }, 20000);
 </script>

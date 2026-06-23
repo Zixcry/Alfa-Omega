@@ -1,12 +1,13 @@
 import os
 from datetime import datetime
 import threading
-from flask import Flask, render_template, jsonify, request
+from flask import Flask, render_template, jsonify, request, session, redirect, url_for
 from flask_sqlalchemy import SQLAlchemy
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///acceso_edificio.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SECRET_KEY'] = 'clave_secreta_auditoria_safe_pass' 
 db = SQLAlchemy(app)
 
 CAPACIDAD_MAXIMA = 100
@@ -24,7 +25,7 @@ class Usuario(db.Model):
     nombre = db.Column(db.String(100), nullable=False)
     departamento = db.Column(db.String(50))
     estado = db.Column(db.String(20), default='Activo')
-    rol = db.Column(db.String(20), default='User')  # Superadmin, Admin, Supervisor, User, Guest
+    rol = db.Column(db.String(20), default='User')  # Superadmin, Admin, Supervisor, User
     
     accesos = db.relationship('Historial', backref='usuario', lazy=True)
 
@@ -66,57 +67,58 @@ def verificar_y_registrar_alerta(aforo_actual):
     db.session.commit()
 
 # ==========================================
-# RUTAS DE AUTENTICACIÓN Y CONTROL DE ACCESO
+# RUTAS DE AUTENTICACIÓN (SIN GUEST)
 # ==========================================
 
-
-# Muestra la pantalla de inicio de sesión al entrar a la raíz
 @app.route('/')
 def login():
     return render_template('login.html', error=None)
-
-# Procesa el formulario del Login con tus reglas estrictas de contraseñas
 
 @app.route('/login-auth', methods=['POST'])
 def login_auth():
     rol_elegido = request.form.get('rol')
     password_ingresada = request.form.get('password', '').strip()
     
-    # Regla 1: Roles de alta jerarquía requieren la clave "terminator"
-    
+    # Regla 1: Roles de alta jerarquía
     if rol_elegido in ['Superadmin', 'Admin']:
         if password_ingresada == 'terminator':
-            
-            # Éxito: Redirige al dashboard pasando el rol en la URL para configurar el monitor
-            
-            return render_template('index.html', rol_inicial=rol_elegido)
+            session['rol'] = rol_elegido
+            return redirect(url_for('dashboard'))
         else:
-            # Falla: Clave incorrecta
-            error_msg = f"Contraseña incorrecta para el perfil de {rol_elegido}."
+            error_msg = f"Contraseña incorrecta del {rol_elegido}."
             return render_template('login.html', error=error_msg)
             
-            
-    # Regla 2: Supervisor, User y Guest entran directo sin contraseña
-    
-    elif rol_elegido in ['Supervisor', 'User', 'Guest']:
-        return render_template('index.html', rol_inicial=rol_elegido)
+    # Regla 2: Supervisor y User entran directo (Quitamos Guest)
+    elif rol_elegido in ['Supervisor', 'User']:
+        session['rol'] = rol_elegido
+        return redirect(url_for('dashboard'))
         
     else:
-        return render_template('login.html', error="Rol no válido seleccionado.")
+        return render_template('login.html', error="Rol no válido seleccionado o acceso denegado.")
 
-# Si alguien intenta entrar al dashboard directo sin pasar por el login principal
-
+# Dashboard protegido contra intrusos
 @app.route('/dashboard')
-def dashboard_directo():
-    return render_template('index.html', rol_inicial='Guest')
+def dashboard():
+    rol_actual = session.get('rol')
+    
+    # Si no hay un rol guardado en la sesión, los bota al login
+    if not rol_actual:
+        return render_template('login.html', error="Debe iniciar sesión para acceder al sistema.")
+        
+    return render_template('index.html', rol_inicial=rol_actual)
 
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect(url_for('login'))
 
-
-# 1. REGISTRO LIBRE: Se eliminó el candado del Superadmin autorizador
+# ==========================================
+# ENDPOINTS DE LA API (PERMISOS SEGUROS)
+# ==========================================
 
 @app.route('/api/registrar-usuario', methods=['POST'])
 def api_registrar_usuario():
-    data = request.get_json()
+    data = request.get_json() or {}
     nueva_c = str(data.get('cedula', '')).strip()
     nuevo_n = data.get('nombre', '').strip()
     nuevo_d = data.get('departamento', '').strip()
@@ -133,11 +135,10 @@ def api_registrar_usuario():
     db.session.commit()
     return jsonify({"status": "success", "message": f"¡Usuario {nuevo_n} registrado exitosamente como {nuevo_r}!"}), 201
 
-# 2. PROCESAR ACCESOS (ENTRADAS / SALIDAS)
 
 @app.route('/api/registrar-acceso', methods=['POST'])
 def registrar_acceso():
-    data = request.get_json()
+    data = request.get_json() or {}
     num_cedula = str(data.get('cedula', '')).strip()
     tipo_movimiento = data.get('tipo_movimiento', 'ENTRADA')
     
@@ -151,21 +152,19 @@ def registrar_acceso():
         return jsonify({"status": "error", "message": "Cédula no registrada."}), 404
         
     if user.estado != 'Activo':
-        return jsonify({"status": "error", "message": f"Acceso Denegado: Credencial Inactiva."}), 403
+        return jsonify({"status": "error", "message": "Acceso Denegado: Credencial Inactiva."}), 403
 
     with lock:
         aforo_actual = obtener_aforo_actual()
         
         if tipo_movimiento == 'ENTRADA':
-            # Solo Superadmin, Admin y Supervisor (perfiles altos) ignoran el tope de aforo si estuviera lleno
-            
             es_staff = user.rol in ['Superadmin', 'Admin', 'Supervisor']
             if aforo_actual >= CAPACIDAD_MAXIMA and not es_staff:
                 resultado = "DENEGADO: Aforo máximo alcanzado"
                 nuevo_log = Historial(cedula=user.cedula, fecha=fecha_str, hora=hora_str, tipo_movimiento=tipo_movimiento, resultado=resultado, aforo_restante=aforo_actual)
                 db.session.add(nuevo_log)
                 db.session.commit()
-                return jsonify({"status": "error", "message": " Edificio lleno. Acceso denegado."}), 403
+                return jsonify({"status": "error", "message": "Edificio lleno. Acceso denegado."}), 403
             else:
                 aforo_actual += 1
                 resultado = f"PERMITIDO: {user.nombre} ({user.rol})"
@@ -181,30 +180,28 @@ def registrar_acceso():
         db.session.add(nuevo_log)
         db.session.commit()
 
-    return jsonify({"status": "success", "message": f" {resultado}"}), 200
+    return jsonify({"status": "success", "message": f"{resultado}"}), 200
 
-# 3. VER LA BASE DE DATOS Y STATUS (Superadmin, Admin, Supervisor pueden ver)
 
 @app.route('/api/status-sistema', methods=['POST'])
 def status_sistema():
     data = request.get_json() or {}
-    # Capturamos el rol y lo limpiamos
-    rol_operador = str(data.get('rol_operador', '')).strip()
+    rol_operador = data.get('rol_operador')
     
-    # === SOLUCIÓN: Convertimos a minúsculas para evitar errores de tipeo ===
-    rol_minúscula = rol_operador.lower()
+    if not rol_operador:
+        rol_operador = session.get('rol', 'Invalido')
+
+    rol_operador = str(rol_operador).strip().lower()
     
-    # Validar Permisos usando minúsculas obligatorias
-    if rol_minúscula not in ['superadmin', 'admin', 'supervisor']:
+    if rol_operador not in ['superadmin', 'admin', 'supervisor']:
         return jsonify({
             "aforo_actual": obtener_aforo_actual(),
             "capacidad_maxima": CAPACIDAD_MAXIMA,
             "porcentaje": round((obtener_aforo_actual()/CAPACIDAD_MAXIMA)*100, 1),
             "historial": [],
-            "error_permiso": f"Su perfil actual ({rol_operador}) no cuenta con autorización para auditar el historial de la base de datos."
+            "error_permiso": f"Su perfil actual ({rol_operador}) no cuenta con autorización para auditar la base de datos."
         }), 200
 
-    # Si pasa la auditoría (es Superadmin, Admin o Supervisor), extrae la información normalmente
     aforo = obtener_aforo_actual()
     porcentaje = (aforo / CAPACIDAD_MAXIMA) * 100
     logs = Historial.query.order_by(Historial.id_log.desc()).limit(7).all()
@@ -233,18 +230,23 @@ def status_sistema():
         "alerta": alerta_json
     })
 
-# 4. MODIFICAR REGISTROS (Solo Superadmin y Admin)
+
+# 4. MODIFICAR REGISTROS (Respaldo con session si falla el JS)
 
 @app.route('/api/modificar-usuario', methods=['POST'])
 def modificar_usuario():
-    data = request.get_json()
-    cedula_op = str(data.get('cedula_operador', '')).strip()
-    target_cedula = str(data.get('target_cedula', '')).strip()
-    nuevo_estado = data.get('nuevo_estado') # 'Activo' o 'Inactivo'
+    data = request.get_json() or {}
+    rol_operador = data.get('rol_operador')
     
-    operador = Usuario.query.filter_by(cedula=cedula_op).first()
-    if not operador or operador.rol not in ['Superadmin', 'Admin']:
-        return jsonify({"status": "error", "message": "No tiene permisos para modificar registros."}), 403
+    if not rol_operador:
+        rol_operador = session.get('rol', 'Invalido')
+        
+    rol_operador = str(rol_operador).strip().lower()
+    target_cedula = str(data.get('target_cedula', '')).strip()
+    nuevo_estado = data.get('nuevo_estado')
+    
+    if rol_operador not in ['superadmin', 'admin']:
+        return jsonify({"status": "error", "message": f"No tiene permisos para modificar registros. Rol detectado: {rol_operador}"}), 403
         
     user = Usuario.query.filter_by(cedula=target_cedula).first()
     if not user:
@@ -254,29 +256,31 @@ def modificar_usuario():
     db.session.commit()
     return jsonify({"status": "success", "message": f"Usuario {user.nombre} actualizado a {nuevo_estado}."})
 
-# 5. BORRAR REGISTROS (Estrictamente Superadmin)
+
+# 5. BORRAR REGISTROS 
 
 @app.route('/api/borrar-usuario', methods=['POST'])
 def borrar_usuario():
-    data = request.get_json()
-    cedula_op = str(data.get('cedula_operador', '')).strip()
+    data = request.get_json() or {}
+    rol_operador = data.get('rol_operador')
+    
+    if not rol_operador:
+        rol_operador = session.get('rol', 'Invalido')
+        
+    rol_operador = str(rol_operador).strip().lower()
     target_cedula = str(data.get('target_cedula', '')).strip()
     
-    operador = Usuario.query.filter_by(cedula=cedula_op).first()
-    if not operador or operador.rol != 'Superadmin':
-        return jsonify({"status": "error", "message": " ACCESO DENEGADO: Solo el Superadmin puede eliminar registros."}), 403
+    if rol_operador != 'superadmin':
+        return jsonify({"status": "error", "message": "ACCESO DENEGADO"}), 403
         
     user = Usuario.query.filter_by(cedula=target_cedula).first()
     if not user:
         return jsonify({"status": "error", "message": "Usuario no encontrado."}), 404
         
-    # Borrar primero su historial por integridad de llaves foráneas
-    
-
     Historial.query.filter_by(cedula=target_cedula).delete()
     db.session.delete(user)
     db.session.commit()
-    return jsonify({"status": "success", "message": f" El usuario con cédula {target_cedula} ha sido eliminado físicamente del sistema."})
+    return jsonify({"status": "success", "message": f"El usuario con cédula {target_cedula} ha sido eliminado."})
 
 if __name__ == '__main__':
     with app.app_context():
