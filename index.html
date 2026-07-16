@@ -39,9 +39,11 @@
 <div class="row">
     
     <!-- COLUMNA IZQUIERDA (Ancho: 4) -->
+     
     <div class="col-lg-4 col-md-12 mb-4">
         
         <!-- Tarjeta 1: Lector de Cédulas -->
+
         <div class="card shadow-sm border-0 mb-4">
             <div class="card-header bg-primary text-white fw-bold"> Lector de Cédulas</div>
             <div class="card-body p-4">
@@ -55,6 +57,7 @@
         </div>
 
         <!-- Tarjeta 2: Registro de Usuarios -->
+
         <div class="card shadow-sm border-0 mb-4">
             <div class="card-header bg-success text-white fw-bold"> Registro de usuarios</div>
             <div class="card-body p-4">
@@ -74,6 +77,7 @@
         </div>
 
         <!-- Tarjeta 3: Modificar Estado (Oculta para Supervisor) -->
+
         {% if rol_inicial in ['Superadmin', 'Admin'] %}
         <div class="card shadow-sm border-0">
             <div class="card-header bg-warning text-dark fw-bold"> Modificar Estado de Usuario </div>
@@ -92,9 +96,10 @@
     </div> <!-- Cierre correcto de columna izquierda -->
 
     <!-- COLUMNA DERECHA - AUDITORÍA (Ancho: 8) -->
+
     <div class="col-lg-8 col-md-12 mb-4">
         <div class="card shadow-sm border-0">
-            <div class="card-header bg-dark text-white fw-bold"> Auditoría de Eventos en la Base de Datos</div>
+            <div class="card-header bg-dark text-white fw-bold">Base de Datos</div>
             <div class="card-body p-0">
                 <div class="table-responsive">
                     <table class="table table-hover align-middle mb-0">
@@ -131,9 +136,26 @@
         })
         .then(res => res.json())
         .then(data => {
-            box.className = `alert mt-3 fw-bold text-center ${data.status === 'success' ? 'alert-success' : 'alert-danger'}`;
+            // Evaluamos el status de respuesta para aplicar clases de Bootstrap
+            
+            let claseAlerta = '';
+            if (data.status === 'success') {
+                claseAlerta = 'alert-success'; // Verde para éxito
+            } else if (data.status === 'warning') {
+                claseAlerta = 'alert-warning text-dark border-warning'; // Amarillo para duplicados
+            } else {
+                claseAlerta = 'alert-danger'; // Rojo para errores duros
+            }
+
+            box.className = `alert mt-3 fw-bold text-center ${claseAlerta}`;
             box.innerText = data.message;
+            
+            // Limpiamos el lector para el siguiente usuario
+
             document.getElementById('input-cedula').value = '';
+            
+            // Actualizamos la tabla de auditoría y aforo al instante
+
             actualizarDashboard();
         });
     }

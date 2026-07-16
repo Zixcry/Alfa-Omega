@@ -167,53 +167,103 @@ def api_registrar_usuario():
     return jsonify({"status": "success", "message": f"¡Usuario {nuevo_n} registrado exitosamente como {nuevo_r}!"}), 201
 
 
+
 @app.route('/api/registrar-acceso', methods=['POST'])
 def registrar_acceso():
-    data = request.get_json() or {}
-    num_cedula = str(data.get('cedula', '')).strip()
-    tipo_movimiento = data.get('tipo_movimiento', 'ENTRADA')
-    
-    ahora = datetime.now()
-    fecha_str = ahora.strftime('%Y-%m-%d')
-    hora_str = ahora.strftime('%H:%M:%S')
-    
-    user = Usuario.query.filter_by(cedula=num_cedula).first()
-    
-    if not user:
-        return jsonify({"status": "error", "message": "Cédula no registrada."}), 404
-        
-    if user.estado != 'Activo':
-        return jsonify({"status": "error", "message": "Acceso Denegado: Credencial Inactiva."}), 403
+    try:
+        data = request.json
+        cedula = data.get('cedula', '').strip()
+        tipo_movimiento = data.get('tipo_movimiento')  # 'ENTRADA' o 'SALIDA'
 
-    with lock:
-        aforo_actual = obtener_aforo_actual()
+        if not cedula or not tipo_movimiento:
+            return jsonify({'status': 'error', 'message': 'Datos incompletos.'}), 400
+
+        # 1. Buscar si el usuario existe en el sistema
+        usuario = Usuario.query.filter_by(cedula=cedula).first()
+        if not usuario:
+            return jsonify({'status': 'error', 'message': 'Usuario no registrado.'}), 404
+
+        # 2. Verificar el estado del usuario (Debe estar Activo)
+        if usuario.estado != 'Activo':
+            return jsonify({'status': 'error', 'message': 'Acceso Denegado: El usuario se encuentra INACTIVO.'}), 403
+
+        # 3. Buscar el ÚLTIMO movimiento exitoso de este usuario usando tus columnas reales
+        ultimo_registro = Historial.query.filter_by(cedula=cedula, resultado='ACCESO CONCEDIDO')\
+                                         .order_by(Historial.fecha.desc(), Historial.hora.desc())\
+                                         .first()
+
+        ultimo_estado = ultimo_registro.tipo_movimiento if ultimo_registro else 'SALIDA'
+        ultima_hora_str = ultimo_registro.hora if ultimo_registro else datetime.now().strftime('%H:%M:%S')
+
+        # 4. Obtener el aforo actual para calcular el 'aforo_restante'
+        # (Ajusta este conteo si en tu app lo calculas de otra forma)
         
+        personas_dentro = Usuario.query.filter_by(estado='Activo').count() # Ejemplo de conteo base
+
+        # --- REGLAS DE VALIDACIÓN CONTRA DOBLES ACCESOS ---
+        ahora = datetime.now()
+        hora_actual_str = ahora.strftime('%H:%M:%S')
+
+        if tipo_movimiento == 'ENTRADA' and ultimo_estado == 'ENTRADA':
+            mensaje_alerta = f"El usuario {usuario.nombre} ya se encuentra dentro del edificio. Registró su entrada a las {ultima_hora_str}."
+            
+            # Guardamos el intento fallido con todas las columnas obligatorias rellenas
+            intento_fallido = Historial(
+                cedula=cedula,
+                fecha=ahora,
+                hora=hora_actual_str,
+                tipo_movimiento='ENTRADA',
+                resultado='DENEGADO: YA REGISTRO SU ENTRADA',
+                aforo_restante=personas_dentro
+            )
+            db.session.add(intento_fallido)
+            db.session.commit()
+            return jsonify({'status': 'warning', 'message': mensaje_alerta})
+
+        elif tipo_movimiento == 'SALIDA' and ultimo_estado == 'SALIDA':
+            mensaje_alerta = f"El usuario {usuario.nombre} ya se encuentra fuera del edificio."
+            
+            intento_fallido = Historial(
+                cedula=cedula,
+                fecha=ahora,
+                hora=hora_actual_str,
+                tipo_movimiento='SALIDA',
+                resultado='DENEGADO: YA REGISTRO SU SALIDA',
+                aforo_restante=personas_dentro
+            )
+            db.session.add(intento_fallido)
+            db.session.commit()
+            return jsonify({'status': 'warning', 'message': mensaje_alerta})
+
+        # 5. Si pasa las validaciones, calculamos el nuevo aforo y guardamos el acceso concedido
         if tipo_movimiento == 'ENTRADA':
-            es_staff = user.rol in ['Superadmin', 'Admin', 'Supervisor']
-            if aforo_actual >= CAPACIDAD_MAXIMA and not es_staff:
-                resultado = "DENEGADO: Aforo máximo alcanzado"
-                nuevo_log = Historial(cedula=user.cedula, fecha=fecha_str, hora=hora_str, tipo_movimiento=tipo_movimiento, resultado=resultado, aforo_restante=aforo_actual)
-                db.session.add(nuevo_log)
-                db.session.commit()
-                return jsonify({"status": "error", "message": "Edificio lleno. Acceso denegado."}), 403
-            else:
-                aforo_actual += 1
-                resultado = f"PERMITIDO: {user.nombre} ({user.rol})"
-                verificar_y_registrar_alerta(aforo_actual)
+            nuevo_aforo = personas_dentro + 1
         else:
-            if aforo_actual > 0:
-                aforo_actual -= 1
-                resultado = f"SALIDA: {user.nombre}"
-            else:
-                resultado = "CORRECCIÓN: Aforo negativo"
+            nuevo_aforo = max(0, personas_dentro - 1)
 
-        nuevo_log = Historial(cedula=user.cedula, fecha=fecha_str, hora=hora_str, tipo_movimiento=tipo_movimiento, resultado=resultado, aforo_restante=aforo_actual)
-        db.session.add(nuevo_log)
+        nuevo_acceso = Historial(
+            cedula=cedula,
+            fecha=ahora,
+            hora=hora_actual_str,
+            tipo_movimiento=tipo_movimiento,
+            resultado='ACCESO CONCEDIDO',
+            aforo_restante=nuevo_aforo
+        )
+        db.session.add(nuevo_acceso)
         db.session.commit()
 
-    return jsonify({"status": "success", "message": f"{resultado}"}), 200
+        return jsonify({
+            'status': 'success',
+            'message': f"¡Acceso Concedido! {tipo_movimiento} registrada para {usuario.nombre}."
+        })
 
-
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error en base de datos: {str(e)}")
+        return jsonify({'status': 'error', 'message': f"Error en base de datos: {str(e)}"}), 500
+    
+    
+    
 @app.route('/api/status-sistema', methods=['POST'])
 def status_sistema():
     data = request.get_json() or {}
