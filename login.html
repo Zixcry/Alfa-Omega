@@ -22,39 +22,59 @@
             <div class="mb-3">
                 <label class="form-label text-muted small fw-bold">Seleccione su Rol:</label>
                 <select class="form-select fw-bold" name="rol" id="select-rol" onchange="evaluarCampos()">
-                    <option value="User">User (Usuario)</option>
-                    <option value="Supervisor">Supervisor (Auditor)</option>
-                    <option value="Admin">Admin (Administrador)</option>
-                    <option value="Superadmin">Superadmin (Control Total)</option>
+                    <option value="User">User </option>
+                    <option value="Supervisor">Supervisor </option>
+                    <option value="Admin">Admin </option>
+                    <option value="Superadmin">Superadmin </option>
                 </select>
             </div>
+
+            <!-- Campo dinámico para Cédula (Solo se muestra a USER) -->
+
+            <div class="mb-4 d-none" id="grupo-cedula-user">
+                <label class="form-label text-primary small fw-bold">Número de Cédula:</label>
+                <input type="text" class="form-control text-center fw-bold text-dark fs-5" name="cedula_user" id="input-cedula-user" placeholder="Escriba su cédula aquí">
+            </div>
+
+            <!-- Campo dinámico para Contraseña (Se muestra a Admin y Superadmin) -->
 
             <div class="mb-4 d-none" id="grupo-password">
                 <label class="form-label text-danger small fw-bold">Contraseña de Seguridad:</label>
                 <input type="password" class="form-control text-center fw-bold text-secondary" name="password" id="input-pass" placeholder="••••••••">
             </div>
 
-            <button type="submit" class="btn btn-primary w-100 fw-bold py-2 shadow-sm">Iniciando Sesión</button>
+            <button type="submit" class="btn btn-primary w-100 fw-bold py-2 shadow-sm">Iniciar Sesión</button>
         </form>
     </div>
 
-    <script>
-        function evaluarCampos() {
-            const rol = document.getElementById('select-rol').value;
-            const grupoPass = document.getElementById('grupo-password');
-            const inputPass = document.getElementById('input-pass');
+<script>
+    function evaluarCampos() {
+        const rol = document.getElementById('select-rol').value;
+        const grupoPass = document.getElementById('grupo-password');
+        const inputPass = document.getElementById('input-pass');
+        const grupoCedula = document.getElementById('grupo-cedula-user');
+        const inputCedula = document.getElementById('input-cedula-user');
 
-            if (rol === 'Superadmin' || rol === 'Admin') {
-                grupoPass.classList.remove('d-none'); // Muestra el campo
-                inputPass.required = true;
-            } else {
-                grupoPass.classList.add('d-none');    // Oculta el campo
-                inputPass.required = false;
-                inputPass.value = '';                 // Limpia el texto por seguridad
-            }
+        // Resetear requeridos y ocultar todo primero
+
+        grupoPass.classList.add('d-none');
+        inputPass.required = false;
+        inputPass.value = '';
+
+        grupoCedula.classList.add('d-none');
+        inputCedula.required = false;
+        inputCedula.value = '';
+
+        if (rol === 'Superadmin' || rol === 'Admin' || rol === 'Supervisor') {
+            grupoPass.classList.remove('d-none'); // Muestra campo de contraseña
+            inputPass.required = true;
+        } else if (rol === 'User') {
+            grupoCedula.classList.remove('d-none'); // Muestra campo de cédula
+            inputCedula.required = true;
         }
-        // Ejecutar al cargar la página por si se quedó seleccionado un rol alto
-        evaluarCampos();
-    </script>
+    }
+    // Ejecutar al cargar la página por si se quedó seleccionado algún rol
+    evaluarCampos();
+</script>
 </body>
 </html>

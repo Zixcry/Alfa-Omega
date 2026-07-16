@@ -1,0 +1,63 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6 col-lg-5">
+        <div class="card shadow-lg border-0 mt-4">
+            <div class="card-header bg-dark text-white text-center py-3">
+                <h4 class="mb-0 fw-bold">Mi Estatus</h4>
+            </div>
+            <div class="card-body p-4 text-center">
+
+                <!-- Icono de perfil según su estado -->
+
+                <div class="mb-4">
+                    {% if usuario.estado == 'Activo' %}
+                        <div class="display-1 text-success">✓</div>
+                    {% else %}
+                        <div class="display-1 text-danger">✗</div>
+                    {% endif %}
+                </div>
+
+                <!-- Nombre y Datos -->
+                 
+                <h3 class="fw-bold text-dark mb-1">{{ usuario.nombre }}</h3>
+                <span class="badge bg-secondary px-3 py-2 text-uppercase mb-4">{{ usuario.rol }}</span>
+
+                <div class="text-start bg-light p-3 rounded-3 mb-4">
+                    <div class="d-flex justify-content-between border-bottom pb-2 mb-2">
+                        <span class="text-muted fw-semibold">Número de Cédula:</span>
+                        <span class="fw-bold text-dark">{{ usuario.cedula }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between border-bottom pb-2 mb-2">
+                        <span class="text-muted fw-semibold">Departamento / Oficina:</span>
+                        <span class="fw-bold text-dark">{{ usuario.departamento or 'No asignado' }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between pt-1">
+                        <span class="text-muted fw-semibold">Estatus de Acceso:</span>
+                        {% if usuario.estado == 'Activo' %}
+                            <span class="badge bg-success fs-6"> HABILITADO</span>
+                        {% else %}
+                            <span class="badge bg-danger fs-6"> INACTIVO / SUSPENDIDO</span>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Mensaje amigable de acceso -->
+                {% if usuario.estado == 'Activo' %}
+                    <div class="alert alert-success border-0 shadow-sm fw-bold mb-0">
+                        ¡Bienvenido! Su credencial está activa. Puede marcar su entrada/salida en el lector físico.
+                    </div>
+                {% else %}
+                    <div class="alert alert-danger border-0 shadow-sm fw-bold mb-0">
+                        Atención: Su acceso al edificio está temporalmente restringido. Por favor, comuníquese con el Administrador.
+                    </div>
+                {% endif %}
+            </div>
+            <div class="card-footer bg-light text-center py-3">
+                <a href="{{ url_for('logout') }}" class="btn btn-outline-danger px-4 fw-bold">Cerrar Sesión</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

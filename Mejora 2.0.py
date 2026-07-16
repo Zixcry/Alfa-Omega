@@ -67,7 +67,7 @@ def verificar_y_registrar_alerta(aforo_actual):
     db.session.commit()
 
 # ==========================================
-# RUTAS DE AUTENTICACIÓN (SIN GUEST)
+# RUTAS DE AUTENTICACIÓN (CON ACCESO USER POR CÉDULA)
 # ==========================================
 
 @app.route('/')
@@ -79,7 +79,8 @@ def login_auth():
     rol_elegido = request.form.get('rol')
     password_ingresada = request.form.get('password', '').strip()
     
-    # Regla 1: Roles de alta jerarquía
+    # Regla 1: Roles de alta jerarquía (Superadmin y Admin)
+    
     if rol_elegido in ['Superadmin', 'Admin']:
         if password_ingresada == 'terminator':
             session['rol'] = rol_elegido
@@ -88,15 +89,34 @@ def login_auth():
             error_msg = f"Contraseña incorrecta del {rol_elegido}."
             return render_template('login.html', error=error_msg)
             
-    # Regla 2: Supervisor y User entran directo (Quitamos Guest)
-    elif rol_elegido in ['Supervisor', 'User']:
-        session['rol'] = rol_elegido
-        return redirect(url_for('dashboard'))
+    # Regla 2: Supervisor ahora requiere contraseña específica
+    
+    elif rol_elegido == 'Supervisor':
+        if password_ingresada == 'superman1*':
+            session['rol'] = rol_elegido
+            return redirect(url_for('dashboard'))
+        else:
+            return render_template('login.html', error="Contraseña incorrecta para el Supervisor.")
+        
+    # Regla 3: User entra validando únicamente su Cédula
+    
+    elif rol_elegido == 'User':
+        cedula_ingresada = request.form.get('cedula_user', '').strip()
+        if not cedula_ingresada:
+            return render_template('login.html', error="Por favor, ingrese su número de cédula.")
+        
+        usuario_existente = Usuario.query.filter_by(cedula=cedula_ingresada).first()
+        if usuario_existente:
+            session['rol'] = 'User'
+            session['user_cedula'] = usuario_existente.cedula
+            return redirect(url_for('dashboard'))
+        else:
+            return render_template('login.html', error="La cédula ingresada no se encuentra registrada en el sistema.")
         
     else:
         return render_template('login.html', error="Rol no válido seleccionado o acceso denegado.")
 
-# Dashboard protegido contra intrusos
+# Dashboard protegido que bifurca la vista según el rol
 @app.route('/dashboard')
 def dashboard():
     rol_actual = session.get('rol')
@@ -105,6 +125,17 @@ def dashboard():
     if not rol_actual:
         return render_template('login.html', error="Debe iniciar sesión para acceder al sistema.")
         
+    # Si es un usuario común, le mostramos su estatus personal
+    if rol_actual == 'User':
+        cedula_user = session.get('user_cedula')
+        usuario = Usuario.query.filter_by(cedula=cedula_user).first()
+        if not usuario:
+            session.clear()
+            return render_template('login.html', error="Usuario no encontrado en la base de datos.")
+        
+        return render_template('perfil_user.html', usuario=usuario)
+        
+    # Si es operador (Superadmin, Admin, Supervisor), ve el panel de control
     return render_template('index.html', rol_inicial=rol_actual)
 
 @app.route('/logout')

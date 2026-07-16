@@ -6,32 +6,42 @@
 </div>
 
 <div class="card shadow-sm border-0 p-3 mb-4 bg-grey text-white">
-        <input type="hidden" id="session-operador" value="{{ rol_inicial }}">
-        <div id="cintillo-sesion" class="alert alert-info py-2 shadow-sm fw-bold mb-3 text-center small-alert" style="transition: opacity 1s ease:">
-            Sesión Activa del Sistema: <span class="text-primary text-uppercase">{{ rol_inicial }}</span>
-        </div>
+    <input type="hidden" id="session-operador" value="{{ rol_inicial }}">
+    <div id="cintillo-sesion" class="alert alert-info py-2 shadow-sm fw-bold mb-3 text-center small-alert" style="transition: opacity 1s ease;">
+        Sesión Activa del Sistema: <span class="text-primary text-uppercase">{{ rol_inicial }}</span>
     </div>
 </div>
 
+<!-- ==========================================
+     BARRA DE PROGRESO DE OCUPACIÓN (CORREGIDA)
+     ========================================== -->
 <div class="row mb-3">
     <div class="col-12">
-        <div class="card shadow-sm border-0 px-3 py-2 bg-light">
+        <div class="card shadow-sm border-0 px-3 py-3 bg-light">
             <div class="row align-items-center">
-            <div class="col-md-4 col-sm-6">
-                <h5 class="fw-bold text-secondary small text-uppercase">Ocupación del Edificio</h5>
-                <span class="fs-6 text-dark" id="txt-aforo">0 / 100 Personas</span>
-                <div class="col-md-8 col-sm-6">
-                <div class="progress" style="height: 10px;">
-            </div>
-            <div class="progress">
-                <div id="barra-progreso" class="progress-bar progress-bar-striped progress-bar-animated bg-success" style="width: 0%">0%</div>
+                <div class="col-md-4 col-sm-12 mb-2 mb-md-0">
+                    <h5 class="fw-bold text-secondary small text-uppercase mb-1">Ocupación del Edificio</h5>
+                    <span class="fs-5 fw-bold text-dark" id="txt-aforo">0 / 100 Personas</span>
+                </div>
+                <div class="col-md-8 col-sm-12">
+                    <div class="progress" style="height: 25px;">
+                        <div id="barra-progreso" class="progress-bar progress-bar-striped progress-bar-animated bg-success fs-6" style="width: 0%">0%</div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 </div>
 
+<!-- ==========================================
+     PANEL PRINCIPAL DE DOS COLUMNAS
+     ========================================== -->
 <div class="row">
-    <div class="col-lg-4 mb-4">
+    
+    <!-- COLUMNA IZQUIERDA (Ancho: 4) -->
+    <div class="col-lg-4 col-md-12 mb-4">
+        
+        <!-- Tarjeta 1: Lector de Cédulas -->
         <div class="card shadow-sm border-0 mb-4">
             <div class="card-header bg-primary text-white fw-bold"> Lector de Cédulas</div>
             <div class="card-body p-4">
@@ -44,6 +54,7 @@
             </div>
         </div>
 
+        <!-- Tarjeta 2: Registro de Usuarios -->
         <div class="card shadow-sm border-0 mb-4">
             <div class="card-header bg-success text-white fw-bold"> Registro de usuarios</div>
             <div class="card-body p-4">
@@ -62,6 +73,8 @@
             </div>
         </div>
 
+        <!-- Tarjeta 3: Modificar Estado (Oculta para Supervisor) -->
+        {% if rol_inicial in ['Superadmin', 'Admin'] %}
         <div class="card shadow-sm border-0">
             <div class="card-header bg-warning text-dark fw-bold"> Modificar Estado de Usuario </div>
             <div class="card-body p-4">
@@ -74,9 +87,12 @@
                 <button class="btn btn-danger w-100 fw-bold" onclick="eliminarFisico()"> Eliminar Usuario </button>
             </div>
         </div>
-    </div>
+        {% endif %}
 
-    <div class="col-lg-8">
+    </div> <!-- Cierre correcto de columna izquierda -->
+
+    <!-- COLUMNA DERECHA - AUDITORÍA (Ancho: 8) -->
+    <div class="col-lg-8 col-md-12 mb-4">
         <div class="card shadow-sm border-0">
             <div class="card-header bg-dark text-white fw-bold"> Auditoría de Eventos en la Base de Datos</div>
             <div class="card-body p-0">
@@ -98,8 +114,9 @@
                 </div>
             </div>
         </div>
-    </div>
-</div>
+    </div> <!-- Cierre correcto de columna derecha -->
+
+</div> <!-- Cierre correcto del contenedor principal row -->
 
 <script>
     function procesarAcceso(tipo) {
@@ -173,19 +190,16 @@
     }
 
     function actualizarDashboard() {
-
-            // Captura el rol enviado desde el Login (Superadmin, Admin, etc.)
-
         const rolActivo = document.getElementById('session-operador').value;
     
         fetch('/api/status-sistema', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ rol_operador: rolActivo }) //  Enviamos el rol directo
-    })
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ rol_operador: rolActivo })
+        })
         .then(res => res.json())
         .then(data => {
-         document.getElementById('txt-aforo').innerText = `${data.aforo_actual} / ${data.capacidad_maxima} Personas`;
+            document.getElementById('txt-aforo').innerText = `${data.aforo_actual} / ${data.capacidad_maxima} Personas`;
             const barra = document.getElementById('barra-progreso');
             barra.style.width = `${data.porcentaje}%`;
             barra.innerText = `${data.porcentaje}%`;
@@ -196,45 +210,41 @@
             const tbody = document.getElementById('lista-logs');
             tbody.innerHTML = '';
 
-        // Bloqueo inmediato si el rol no tiene permisos de lectura
-
             if(data.error_permiso) {
-            tbody.innerHTML = `<tr><td colspan="7" class="text-center py-4 text-danger fw-bold">⚠️ ${data.error_permiso}</td></tr>`;
-            return;
-        }
+                tbody.innerHTML = `<tr><td colspan="7" class="text-center py-4 text-danger fw-bold">⚠️ ${data.error_permiso}</td></tr>`;
+                return;
+            }
 
             if(data.historial.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="7" class="text-center py-4 text-muted">No hay registros de movimientos.</td></tr>`;
-            return;
-        }
+                tbody.innerHTML = `<tr><td colspan="7" class="text-center py-4 text-muted">No hay registros de movimientos.</td></tr>`;
+                return;
+            }
 
             data.historial.forEach(l => {
                 let badgeM = l.movimiento === 'ENTRADA' ? 'bg-success' : 'bg-danger';
                 let resClass = l.resultado.includes('DENEGADO') ? 'text-danger fw-bold' : 'text-muted';
-                  tbody.innerHTML += `<tr>
-                <td class="ps-3"><strong>${l.cedula}</strong></td>
-                <td>${l.nombre}</td>
-                <td>${l.departamento}</td>
-                <td><span class="badge bg-secondary">${l.rol}</span></td>
-                <td class="text-center"><span class="badge ${badgeM}">${l.movimiento}</span></td>
-                <td class="${resClass}">${l.resultado}</td>
-                <td><small class="fw-bold">${l.hora}</small></td>
-            </tr>`;
+                tbody.innerHTML += `<tr>
+                    <td class="ps-3"><strong>${l.cedula}</strong></td>
+                    <td>${l.nombre}</td>
+                    <td>${l.departamento}</td>
+                    <td><span class="badge bg-secondary">${l.rol}</span></td>
+                    <td class="text-center"><span class="badge ${badgeM}">${l.movimiento}</span></td>
+                    <td class="${resClass}">${l.resultado}</td>
+                    <td><small class="fw-bold">${l.hora}</small></td>
+                </tr>`;
+            });
         });
-    });
-}
+    }
 
     setInterval(actualizarDashboard, 2000);
     actualizarDashboard();
 
-    // Temporizador para hacer desaparecer el cintillo en 20 segundos (20000 milisegundos)
-
     setTimeout(function() {
-    const cintillo = document.getElementById('cintillo-sesion');
-    if (cintillo) {
-        cintillo.style.opacity = '0'; //     Aplica desvanecimiento suave
-        setTimeout(() => cintillo.remove(), 1000); //    Lo elimina físicamente del diseño 1 segundo después
-    }
-}, 20000);
+        const cintillo = document.getElementById('cintillo-sesion');
+        if (cintillo) {
+            cintillo.style.opacity = '0';
+            setTimeout(() => cintillo.remove(), 1000);
+        }
+    }, 20000);
 </script>
 {% endblock %}
